@@ -1,0 +1,607 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = []
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  VETERINARIAN
+  OPERATOR
+}
+
+enum AnimalSex {
+  MALE
+  FEMALE
+}
+
+enum AnimalStatus {
+  ACTIVE
+  SOLD
+  DECEASED
+  TRANSFERRED
+}
+
+enum ReproductiveEventType {
+  HEAT_DETECTED
+  NATURAL_MATING
+  ARTIFICIAL_INSEMINATION
+  PREGNANCY_CONFIRMED
+  PREGNANCY_LOST
+  CALVING
+  DRY_OFF
+}
+
+enum PregnancyStatus {
+  IN_PROGRESS
+  COMPLETED
+  ABORTED
+  LOST
+}
+
+enum TreatmentStatus {
+  ACTIVE
+  COMPLETED
+  SUSPENDED
+}
+
+enum DiseaseStatus {
+  ACTIVE
+  RESOLVED
+  CHRONIC
+}
+
+enum AlertType {
+  VACCINE_DUE
+  HEAT_EXPECTED
+  CALVING_EXPECTED
+  TREATMENT_FOLLOWUP
+  WEIGHING_DUE
+  REPRODUCTIVE_CHECK
+  CUSTOM
+}
+
+enum SaleType {
+  ANIMAL
+  MILK
+  MEAT
+  SUBPRODUCT
+}
+
+enum PaymentFrequency {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
+
+enum CostCategory {
+  FEED
+  VETERINARY
+  LABOR
+  INFRASTRUCTURE
+  EQUIPMENT
+  TRANSPORT
+  MEDICINE
+  SEED_FERTILIZER
+  OTHER
+}
+
+enum IncomeCategory {
+  ANIMAL_SALE
+  MILK_SALE
+  MEAT_SALE
+  SUBPRODUCT_SALE
+  SUBSIDY
+  OTHER
+}
+
+// ─────────────────────────────────────────────
+// FARM
+// ─────────────────────────────────────────────
+
+model Farm {
+  id                  String    @id @default(uuid())
+  name                String
+  location            String?
+  department          String?
+  municipality        String?
+  areaHectares        Float?
+  phone               String?
+  email               String?
+  rut                 String?   @unique
+  isActive            Boolean   @default(true)
+  subscriptionEndsAt  DateTime?             // null = sin límite (fincas SUPER_ADMIN)
+  notes               String?               // notas internas del admin
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  users             User[]
+  animals           Animal[]
+  breeds            Breed[]
+  vaccines          Vaccine[]
+  medications       Medication[]
+  healthAlerts      HealthAlert[]
+  sales             Sale[]
+  operationalCosts  OperationalCost[]
+  incomeRecords     IncomeRecord[]
+  notifications     Notification[]
+  dairyConfig       DairyConfig?
+  milkSales         MilkSale[]
+
+  @@map("farms")
+}
+
+// ─────────────────────────────────────────────
+// USERS & AUTH
+// ─────────────────────────────────────────────
+
+model User {
+  id          String    @id @default(uuid())
+  email       String    @unique
+  password    String
+  firstName   String
+  lastName    String
+  phone       String?
+  photoUrl    String?
+  username    String?   @unique
+  role        UserRole  @default(OPERATOR)
+  isActive    Boolean   @default(true)
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  farmId      String?
+  farm        Farm?     @relation(fields: [farmId], references: [id])
+
+  notifications       Notification[]
+  appliedVaccinations Vaccination[] @relation("VaccinationAppliedBy")
+  appliedTreatments   Treatment[]   @relation("TreatmentAppliedBy")
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@map("refresh_tokens")
+}
+
+// ─────────────────────────────────────────────
+// BREEDS
+// ─────────────────────────────────────────────
+
+model Breed {
+  id          String   @id @default(uuid())
+  name        String
+  species     String   @default("Bovino")
+  origin      String?
+  description String?
+  isGlobal    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  farmId      String?
+  farm        Farm?    @relation(fields: [farmId], references: [id])
+
+  animals     Animal[]
+
+  @@unique([name, farmId])
+  @@map("breeds")
+}
+
+// ─────────────────────────────────────────────
+// ANIMALS
+// ─────────────────────────────────────────────
+
+model Animal {
+  id            String       @id @default(uuid())
+  tagNumber     String
+  name          String?
+  sex           AnimalSex
+  birthDate     DateTime?
+  birthWeight   Float?
+  currentWeight Float?
+  photoUrl      String?
+  status        AnimalStatus @default(ACTIVE)
+  notes         String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  farmId        String
+  farm          Farm         @relation(fields: [farmId], references: [id])
+
+  breedId       String?
+  breed         Breed?       @relation(fields: [breedId], references: [id])
+
+  fatherId      String?
+  father        Animal?      @relation("Father", fields: [fatherId], references: [id])
+  fatherOf      Animal[]     @relation("Father")
+
+  motherId      String?
+  mother        Animal?      @relation("Mother", fields: [motherId], references: [id])
+  motherOf      Animal[]     @relation("Mother")
+
+  reproductiveEventsAsFemale ReproductiveEvent[] @relation("FemaleInEvent")
+  reproductiveEventsAsMale   ReproductiveEvent[] @relation("MaleInEvent")
+  pregnanciesAsFemale        Pregnancy[]         @relation("FemalePregnancy")
+  pregnanciesAsMale          Pregnancy[]         @relation("MaleInPregnancy")
+  offspringFromPregnancy     Pregnancy[]         @relation("OffspringFromPregnancy")
+  vaccinations               Vaccination[]
+  treatments                 Treatment[]
+  diseases                   Disease[]
+  milkRecords                MilkRecord[]
+  weightRecords              WeightRecord[]
+  healthAlerts               HealthAlert[]
+  sales                      Sale[]
+  inbreedingAnalyses         InbreedingAnalysis[]
+  galleryPhotos              AnimalPhoto[]
+
+  @@unique([tagNumber, farmId])
+  @@map("animals")
+}
+
+model AnimalPhoto {
+  id        String   @id @default(uuid())
+  url       String
+  createdAt DateTime @default(now())
+
+  animalId  String
+  animal    Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
+
+  @@map("animal_photos")
+}
+
+// ─────────────────────────────────────────────
+// GENEALOGY & GENETICS
+// ─────────────────────────────────────────────
+
+model InbreedingAnalysis {
+  id                    String   @id @default(uuid())
+  inbreedingCoefficient Float
+  analysisDate          DateTime @default(now())
+  generationsAnalyzed   Int      @default(3)
+  notes                 String?
+  createdAt             DateTime @default(now())
+
+  animalId              String
+  animal                Animal   @relation(fields: [animalId], references: [id])
+
+  @@map("inbreeding_analyses")
+}
+
+// ─────────────────────────────────────────────
+// REPRODUCTION
+// ─────────────────────────────────────────────
+
+model ReproductiveEvent {
+  id             String                @id @default(uuid())
+  type           ReproductiveEventType
+  eventDate      DateTime
+  notes          String?
+  bullSemen      String?
+  technicianName String?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  femaleId       String
+  female         Animal                @relation("FemaleInEvent", fields: [femaleId], references: [id])
+
+  maleId         String?
+  male           Animal?               @relation("MaleInEvent", fields: [maleId], references: [id])
+
+  @@map("reproductive_events")
+}
+
+model Pregnancy {
+  id                String          @id @default(uuid())
+  conceptionDate    DateTime
+  expectedBirthDate DateTime
+  actualBirthDate   DateTime?
+  status            PregnancyStatus @default(IN_PROGRESS)
+  gestationDays     Int?
+  offspringCount    Int             @default(1)
+  notes             String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  femaleId          String
+  female            Animal          @relation("FemalePregnancy", fields: [femaleId], references: [id])
+
+  maleId            String?
+  male              Animal?         @relation("MaleInPregnancy", fields: [maleId], references: [id])
+
+  offspringId       String?
+  offspring         Animal?         @relation("OffspringFromPregnancy", fields: [offspringId], references: [id])
+
+  @@map("pregnancies")
+}
+
+// ─────────────────────────────────────────────
+// HEALTH & VACCINES
+// ─────────────────────────────────────────────
+
+model Vaccine {
+  id               String   @id @default(uuid())
+  name             String
+  manufacturer     String?
+  description      String?
+  doseIntervalDays Int?
+  isGlobal         Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  farmId           String?
+  farm             Farm?    @relation(fields: [farmId], references: [id])
+
+  vaccinations     Vaccination[]
+
+  @@unique([name, farmId])
+  @@map("vaccines")
+}
+
+model Vaccination {
+  id           String   @id @default(uuid())
+  appliedDate  DateTime
+  nextDueDate  DateTime?
+  batchNumber  String?
+  doseMl       Float?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  animalId     String
+  animal       Animal   @relation(fields: [animalId], references: [id])
+
+  vaccineId    String
+  vaccine      Vaccine  @relation(fields: [vaccineId], references: [id])
+
+  appliedById  String?
+  appliedBy    User?    @relation("VaccinationAppliedBy", fields: [appliedById], references: [id])
+
+  @@map("vaccinations")
+}
+
+model Medication {
+  id          String   @id @default(uuid())
+  name        String
+  type        String?
+  description String?
+  dosageUnit  String?
+  isGlobal    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  farmId      String?
+  farm        Farm?    @relation(fields: [farmId], references: [id])
+
+  treatments  Treatment[]
+
+  @@unique([name, farmId])
+  @@map("medications")
+}
+
+model Treatment {
+  id           String          @id @default(uuid())
+  diagnosis    String
+  startDate    DateTime
+  endDate      DateTime?
+  dosage       Float?
+  dosageUnit   String?
+  frequency    String?
+  status       TreatmentStatus @default(ACTIVE)
+  notes        String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  animalId     String
+  animal       Animal          @relation(fields: [animalId], references: [id])
+
+  medicationId String?
+  medication   Medication?     @relation(fields: [medicationId], references: [id])
+
+  appliedById  String?
+  appliedBy    User?           @relation("TreatmentAppliedBy", fields: [appliedById], references: [id])
+
+  @@map("treatments")
+}
+
+model Disease {
+  id            String        @id @default(uuid())
+  name          String
+  diagnosisDate DateTime
+  resolvedDate  DateTime?
+  status        DiseaseStatus @default(ACTIVE)
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  animalId      String
+  animal        Animal        @relation(fields: [animalId], references: [id])
+
+  @@map("diseases")
+}
+
+model HealthAlert {
+  id            String    @id @default(uuid())
+  type          AlertType
+  scheduledDate DateTime
+  title         String
+  description   String?
+  isCompleted   Boolean   @default(false)
+  completedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  animalId      String?
+  animal        Animal?   @relation(fields: [animalId], references: [id])
+
+  farmId        String
+  farm          Farm      @relation(fields: [farmId], references: [id])
+
+  @@map("health_alerts")
+}
+
+// ─────────────────────────────────────────────
+// PRODUCTION
+// ─────────────────────────────────────────────
+
+model MilkRecord {
+  id               String   @id @default(uuid())
+  recordDate       DateTime @db.Date
+  morningLiters    Float?
+  afternoonLiters  Float?
+  eveningLiters    Float?
+  totalLiters      Float
+  qualityScore     Float?
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  animalId         String
+  animal           Animal   @relation(fields: [animalId], references: [id])
+
+  @@unique([animalId, recordDate])
+  @@map("milk_records")
+}
+
+model WeightRecord {
+  id          String   @id @default(uuid())
+  recordDate  DateTime @db.Date
+  weightKg    Float
+  method      String?
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  animalId    String
+  animal      Animal   @relation(fields: [animalId], references: [id])
+
+  @@map("weight_records")
+}
+
+model DairyConfig {
+  id               String           @id @default(uuid())
+  buyerName        String?
+  pricePerLiter    Float            @default(0)
+  paymentFrequency PaymentFrequency @default(MONTHLY)
+  notes            String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  farmId           String           @unique
+  farm             Farm             @relation(fields: [farmId], references: [id])
+
+  @@map("dairy_configs")
+}
+
+model MilkSale {
+  id        String   @id @default(uuid())
+  saleDate  DateTime @db.Date
+  liters    Float
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  farmId    String
+  farm      Farm     @relation(fields: [farmId], references: [id])
+
+  @@map("milk_sales")
+}
+
+// ─────────────────────────────────────────────
+// FINANCE
+// ─────────────────────────────────────────────
+
+model Sale {
+  id            String   @id @default(uuid())
+  saleDate      DateTime
+  type          SaleType
+  quantity      Float
+  unit          String?
+  unitPrice     Float
+  totalAmount   Float
+  buyerName     String?
+  buyerContact  String?
+  invoiceNumber String?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  animalId      String?
+  animal        Animal?  @relation(fields: [animalId], references: [id])
+
+  farmId        String
+  farm          Farm     @relation(fields: [farmId], references: [id])
+
+  @@map("sales")
+}
+
+model OperationalCost {
+  id            String       @id @default(uuid())
+  category      CostCategory
+  description   String
+  amount        Float
+  costDate      DateTime     @db.Date
+  supplier      String?
+  invoiceNumber String?
+  notes         String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  farmId        String
+  farm          Farm         @relation(fields: [farmId], references: [id])
+
+  @@map("operational_costs")
+}
+
+model IncomeRecord {
+  id          String         @id @default(uuid())
+  category    IncomeCategory
+  description String
+  amount      Float
+  incomeDate  DateTime       @db.Date
+  source      String?
+  notes       String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  farmId      String
+  farm        Farm           @relation(fields: [farmId], references: [id])
+
+  @@map("income_records")
+}
+
+// ─────────────────────────────────────────────
+// NOTIFICATIONS
+// ─────────────────────────────────────────────
+
+model Notification {
+  id            String   @id @default(uuid())
+  title         String
+  message       String
+  type          String
+  isRead        Boolean  @default(false)
+  readAt        DateTime?
+  referenceId   String?
+  referenceType String?
+  createdAt     DateTime @default(now())
+
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+
+  farmId        String
+  farm          Farm     @relation(fields: [farmId], references: [id])
+
+  @@map("notifications")
+}
