@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 
 const MAX_GALLERY_PHOTOS = 5;
 import { extname } from 'path';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { paginate, getPaginationParams } from '../../common/utils/pagination.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ANIMAL_PHOTOS_BUCKET, SupabaseService } from '../../supabase/supabase.service';
@@ -254,7 +254,7 @@ export class AnimalsService {
 
     // Build a unique path: "animal-photos/<animalId>/<uuid>.<ext>"
     const ext = (extname(originalName) || '.jpg').toLowerCase();
-    const storagePath = `${id}/${uuidv4()}${ext}`;
+    const storagePath = `${id}/${randomUUID()}${ext}`;
 
     const photoUrl = await this.supabase.uploadFile(
       ANIMAL_PHOTOS_BUCKET,
@@ -309,7 +309,7 @@ export class AnimalsService {
     }
 
     const ext = (extname(originalName) || '.jpg').toLowerCase();
-    const storagePath = `gallery/${id}/${uuidv4()}${ext}`;
+    const storagePath = `gallery/${id}/${randomUUID()}${ext}`;
 
     const url = await this.supabase.uploadFile(
       ANIMAL_PHOTOS_BUCKET,
