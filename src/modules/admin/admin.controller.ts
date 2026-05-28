@@ -3,6 +3,8 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CreateClientDto } from './dto/create-client.dto';
+import { ToggleEntityDto } from './dto/toggle-entity.dto';
+import { UpdateSubscriptionDto } from './dto/update-subscription.dto';
 import { AdminService } from './admin.service';
 
 @ApiTags('Admin')
@@ -34,16 +36,16 @@ export class AdminController {
   @ApiOperation({ summary: 'Actualizar suscripción de una finca' })
   updateSubscription(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: { months: number | null; notes?: string },
+    @Body() body: UpdateSubscriptionDto,
   ) {
-    return this.adminService.updateSubscription(id, body.months, body.notes);
+    return this.adminService.updateSubscription(id, body.months ?? null, body.notes);
   }
 
   @Patch('farms/:id/toggle')
   @ApiOperation({ summary: 'Activar o desactivar una finca' })
   toggleFarm(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: { isActive: boolean },
+    @Body() body: ToggleEntityDto,
   ) {
     return this.adminService.toggleFarm(id, body.isActive);
   }
@@ -52,7 +54,7 @@ export class AdminController {
   @ApiOperation({ summary: 'Activar o desactivar un usuario' })
   toggleUser(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: { isActive: boolean },
+    @Body() body: ToggleEntityDto,
   ) {
     return this.adminService.toggleUser(id, body.isActive);
   }

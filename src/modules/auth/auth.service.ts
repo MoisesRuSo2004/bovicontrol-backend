@@ -154,9 +154,29 @@ export class AuthService {
 
     const user = await this.prisma.user.findUnique({
       where: { id: storedToken.userId },
-      select: { id: true, email: true, role: true, farmId: true, isActive: true },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        farmId: true,
+        isActive: true,
+        farm: { select: { isActive: true, subscriptionEndsAt: true } },
+      },
     });
+
     if (!user || !user.isActive) throw new UnauthorizedException('Usuario no válido');
+
+    // Misma validación de suscripción que en login
+    if (user.role !== 'SUPER_ADMIN') {
+      if (!user.farm?.isActive) {
+        throw new UnauthorizedException('Tu finca está desactivada. Contacta a BoviControl.');
+      }
+      if (user.farm?.subscriptionEndsAt && user.farm.subscriptionEndsAt < new Date()) {
+        throw new UnauthorizedException(
+          `Tu suscripción venció el ${user.farm.subscriptionEndsAt.toLocaleDateString('es-CO')}. Contacta a BoviControl para renovar.`,
+        );
+      }
+    }
 
     await this.prisma.refreshToken.delete({ where: { token: refreshToken } });
     return this.generateTokens(user.id, user.email, user.role, user.farmId);
