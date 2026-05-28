@@ -39,6 +39,16 @@ export class FinanceController {
     return this.financeService.getSummary(farmId, from, to);
   }
 
+  @Get('monthly')
+  @ApiOperation({ summary: 'Tendencia mensual de ingresos vs costos (últimos N meses)' })
+  @ApiQuery({ name: 'months', required: false, type: Number, description: 'Cuántos meses hacia atrás (default 12)' })
+  getMonthlyTrend(
+    @CurrentUser('farmId') farmId: string,
+    @Query('months') months?: string,
+  ) {
+    return this.financeService.getMonthlyTrend(farmId, months ? +months : 12);
+  }
+
   // ─── Sales ──────────────────────────────────────────────────────────────────
 
   @Post('sales')

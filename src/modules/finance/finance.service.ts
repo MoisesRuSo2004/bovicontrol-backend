@@ -250,4 +250,49 @@ export class FinanceService {
       })),
     };
   }
+
+  // ─── Monthly trend (last N months) ─────────────────────────────────────────
+
+  async getMonthlyTrend(farmId: string, months = 12) {
+    const now = new Date();
+    const result: {
+      month: string; year: number; monthNum: number;
+      income: number; costs: number; profit: number;
+    }[] = [];
+
+    for (let i = months - 1; i >= 0; i--) {
+      const d     = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const from  = new Date(d.getFullYear(), d.getMonth(), 1);
+      const to    = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
+
+      const [salesAgg, costsAgg, incomesAgg] = await Promise.all([
+        this.prisma.sale.aggregate({
+          where: { farmId, saleDate: { gte: from, lte: to } },
+          _sum: { totalAmount: true },
+        }),
+        this.prisma.operationalCost.aggregate({
+          where: { farmId, costDate: { gte: from, lte: to } },
+          _sum: { amount: true },
+        }),
+        this.prisma.incomeRecord.aggregate({
+          where: { farmId, incomeDate: { gte: from, lte: to } },
+          _sum: { amount: true },
+        }),
+      ]);
+
+      const income = (salesAgg._sum?.totalAmount ?? 0) + (incomesAgg._sum?.amount ?? 0);
+      const costs  = costsAgg._sum?.amount ?? 0;
+
+      result.push({
+        month:    d.toLocaleDateString('es-CO', { month: 'short' }),
+        year:     d.getFullYear(),
+        monthNum: d.getMonth() + 1,
+        income:   Math.round(income * 100) / 100,
+        costs:    Math.round(costs  * 100) / 100,
+        profit:   Math.round((income - costs) * 100) / 100,
+      });
+    }
+
+    return { months: result };
+  }
 }
