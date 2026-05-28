@@ -29,6 +29,6 @@ export function paginate<T>(data: T[], total: number, page: number, limit: numbe
 
 export function getPaginationParams(page = 1, limit = 20): { skip: number; take: number } {
   const safePage = Math.max(1, page);
-  const safeLimit = Math.min(100, Math.max(1, limit));
+  const safeLimit = Math.min(500, Math.max(1, limit));
   return { skip: (safePage - 1) * safeLimit, take: safeLimit };
 }
